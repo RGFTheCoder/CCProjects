@@ -1,0 +1,821 @@
+{
+  [ "README.md" ] = "# Opus OS for computercraft\
+\
+## Features\
+* Multitasking OS - run programs in separate tabs\
+* Telnet (wireless remote shell)\
+* VNC (wireless screen sharing)\
+* UI API\
+* Turtle API (includes true pathfinding based on the ASTAR algorithm)\
+* Remote file system access (you can access the file system of any computer in wireless range)\
+* File manager\
+* Lua REPL with GUI\
+* Run scripts on single or groups of computers (GUI)\
+* Turtle follow (with GPS) and turtle come to you (without GPS)\
+\
+## Install\
+```\
+pastebin run uzghlbnc\
+reboot\
+```",
+  [ "startup.lua" ] = "local colors   = _G.colors\
+local os       = _G.os\
+local settings = _G.settings\
+local term     = _G.term\
+\
+local bootOptions = {\
+	{ prompt = os.version() },\
+	{ prompt = 'Opus'         , args = { '/sys/os/opus/sys/boot/opus.boot' } },\
+	{ prompt = 'Opus Shell'   , args = { '/sys/os/opus/sys/boot/opus.boot', 'sys/apps/shell' } },\
+}\
+local bootOption = 2\
+if settings then\
+	settings.load('.settings')\
+	bootOption = tonumber(settings.get('opus.boot_option') or 2) or 2\
+end\
+\
+local function startupMenu()\
+	while true do\
+		term.clear()\
+		term.setCursorPos(1, 1)\
+		print('Select startup mode')\
+		print()\
+		for k,option in pairs(bootOptions) do\
+			print(k .. ' : ' .. option.prompt)\
+		end\
+		print('')\
+		term.write('> ')\
+		local ch = tonumber(_G.read())\
+		if ch and bootOptions[ch] then\
+			return ch\
+		end\
+	end\
+end\
+\
+local function splash()\
+	local w, h = term.current().getSize()\
+\
+	term.setTextColor(colors.white)\
+	if not term.isColor() then\
+		local str = 'Opus OS'\
+		term.setCursorPos((w - #str) / 2, h / 2)\
+		term.write(str)\
+	else\
+		term.setBackgroundColor(colors.black)\
+		term.clear()\
+		local opus = {\
+			'fffff00',\
+			'ffff07000',\
+			'ff00770b00 4444',\
+			'ff077777444444444',\
+			'f07777744444444444',\
+			'f0000777444444444',\
+			'070000111744444',\
+			'777770000',\
+			'7777000000',\
+			'70700000000',\
+			'077000000000',\
+		}\
+		for k,line in ipairs(opus) do\
+			term.setCursorPos((w - 18) / 2, k + (h - #opus) / 2)\
+			term.blit(string.rep(' ', #line), string.rep('a', #line), line)\
+		end\
+	end\
+\
+	local str = 'Press any key for menu'\
+	term.setCursorPos((w - #str) / 2, h)\
+	term.write(str)\
+end\
+\
+term.clear()\
+splash()\
+\
+local timerId = os.startTimer(1.5)\
+while true do\
+	local e, id = os.pullEvent()\
+	if e == 'timer' and id == timerId then\
+		break\
+	end\
+	if e == 'char' then\
+		bootOption = startupMenu()\
+		if settings then\
+			settings.set('opus.boot_option', bootOption)\
+			settings.save('.settings')\
+		end\
+		break\
+	end\
+end\
+\
+term.clear()\
+term.setCursorPos(1, 1)\
+if bootOptions[bootOption].args then\
+	os.run(_G.getfenv(1), table.unpack(bootOptions[bootOption].args))\
+else\
+	print(bootOptions[bootOption].prompt)\
+end",
+  usr = {
+    apps = {},
+    config = {
+      multishell = "{\
+  standard = {\
+    tabBarBackgroundColor = 128,\
+    focusBackgroundColor = 128,\
+    errorColor = 32768,\
+    focusTextColor = 1,\
+    tabBarTextColor = 256,\
+    backgroundColor = 128,\
+    textColor = 256,\
+  },\
+  color = {\
+    tabBarBackgroundColor = 128,\
+    focusBackgroundColor = 128,\
+    errorColor = 16384,\
+    focusTextColor = 1,\
+    tabBarTextColor = 256,\
+    backgroundColor = 128,\
+    textColor = 256,\
+  },\
+}",
+      shellprompt = "{\
+  standard = {\
+    promptTextColor = 128,\
+    commandTextColor = 256,\
+    directoryTextColor = 128,\
+    promptBackgroundColor = 32768,\
+    directoryColor = 128,\
+    directoryBackgroundColor = 32768,\
+    textColor = 1,\
+  },\
+  displayDirectory = true,\
+  color = {\
+    promptTextColor = 2048,\
+    commandTextColor = 16,\
+    directoryTextColor = 2,\
+    promptBackgroundColor = 32768,\
+    directoryColor = 8192,\
+    directoryBackgroundColor = 32768,\
+    textColor = 1,\
+  },\
+}",
+      network = "{}",
+      gps = "{}",
+      packages = "{\
+	[ 'core'       ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/core/.package',\
+	[ 'builder'    ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/builder/.package',\
+	[ 'farms'      ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/farms/.package',\
+--	[ 'forestry'   ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/forestry/.package',\
+--	[ 'glasses'    ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/glasses/.package',\
+	[ 'milo'       ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/milo/.package',\
+	[ 'miners'     ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/miners/.package',\
+--	[ 'neural'     ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/neural/.package',\
+--	[ 'pickup'     ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/pickup/.package',\
+--	[ 'recipeBook' ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/recipeBook/.package',\
+	[ 'storage'    ] = 'https://raw.githubusercontent.com/kepler155c/opus-apps/master-1.8/storage/.package',\
+}",
+      os = "{}",
+      Overview = "{\
+  Recent = {\
+    \"01c933b2a36ad8ed2d54089cb2903039046c1216\",\
+    \"53ebc572b4a44802ba114729f07bdaaf5409a9d7\",\
+    \"2a4d562b1d9a9c90bdede6fac8ce4f7402462b86\",\
+    \"bc0792d8dc81e8aa30b987246a5ce97c40cd6833\",\
+    \"bdc1fd5d3c0f3dcfd55d010426e61bf9451e680d\",\
+    \"b0832074630eb731d7fbe8074de48a90cd9bb220\",\
+  },\
+  currentCategory = \"Apps\",\
+}",
+      shell = "{\
+  path = \"/sys/os/opus/usr/apps:sys/os/opus/sys/apps:.:/rom/programs:/rom/programs/advanced:/rom/programs/rednet:/rom/programs/fun:/rom/programs/fun/advanced:/rom/programs/http\",\
+  lua_path = \"sys/os/opus/sys/apis:/sys/os/opus/usr/apis\",\
+  aliases = {\
+    rm = \"delete\",\
+    dir = \"list\",\
+    clr = \"clear\",\
+    sh = \"shell\",\
+    ls = \"list\",\
+    background = \"bg\",\
+    foreground = \"fg\",\
+    cp = \"copy\",\
+    mv = \"move\",\
+    rs = \"redstone\",\
+  },\
+}",
+    },
+    autorun = {},
+    [ ".lua_history" ] = "print(\"hello\")\
+print(\"hello\"\
+print(\"hello\")",
+  },
+  [ "LICENSE.md" ] = "MIT License\
+\
+Copyright (c) 2016-2017 kepler155c\
+\
+Permission is hereby granted, free of charge, to any person obtaining a copy\
+of this software and associated documentation files (the \"Software\"), to deal\
+in the Software without restriction, including without limitation the rights\
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\
+copies of the Software, and to permit persons to whom the Software is\
+furnished to do so, subject to the following conditions:\
+\
+The above copyright notice and this permission notice shall be included in all\
+copies or substantial portions of the Software.\
+\
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\
+SOFTWARE.",
+  [ ".gitignore" ] = "/ignore",
+  sys = {
+    network = {
+      [ "redserver.lua" ] = "local Event = require('event')\
+local Util  = require('util')\
+\
+local fs    = _G.fs\
+local modem = _G.device.wireless_modem\
+local os    = _G.os\
+\
+local computerId = os.getComputerID()\
+\
+modem.open(80)\
+\
+-- https://github.com/golgote/neturl/blob/master/lib/net/url.lua\
+local function parseQuery(str)\
+	local sep = '&'\
+\
+	local values = {}\
+	for key,val in str:gmatch(string.format('([^%q=]+)(=*[^%q=]*)', sep, sep)) do\
+		--local key = decode(key)\
+		local keys = {}\
+		key = key:gsub('%[([^%]]*)%]', function(v)\
+				-- extract keys between balanced brackets\
+				if string.find(v, \"^-?%d+$\") then\
+					v = tonumber(v)\
+				--else\
+					--v = decode(v)\
+				end\
+				table.insert(keys, v)\
+				return \"=\"\
+		end)\
+		key = key:gsub('=+.*$', \"\")\
+		key = key:gsub('%s', \"_\") -- remove spaces in parameter name\
+		val = val:gsub('^=+', \"\")\
+\
+		if not values[key] then\
+			values[key] = {}\
+		end\
+		if #keys > 0 and type(values[key]) ~= 'table' then\
+			values[key] = {}\
+		elseif #keys == 0 and type(values[key]) == 'table' then\
+			values[key] = val --decode(val)\
+		end\
+\
+		local t = values[key]\
+		for i,k in ipairs(keys) do\
+			if type(t) ~= 'table' then\
+				t = {}\
+			end\
+			if k == \"\" then\
+				k = #t+1\
+			end\
+			if not t[k] then\
+				t[k] = {}\
+			end\
+			if i == #keys then\
+				t[k] = val --decode(val)\
+			end\
+			t = t[k]\
+		end\
+	end\
+	return values\
+end\
+\
+local function getListing(path, recursive)\
+	local list = { }\
+	local function listing(p)\
+		for _, f in pairs(fs.listEx(p)) do\
+			local abs = fs.combine(p, f.name)\
+			table.insert(list, {\
+				isDir = f.isDir,\
+				path = string.sub(abs, #path + 1),\
+				size = f.size,\
+			})\
+			if recursive and f.isDir then\
+				listing(abs)\
+			end\
+		end\
+	end\
+	listing(path)\
+	return list\
+end\
+\
+Event.on('modem_message', function(_, _, dport, dhost, request)\
+	if dport == 80 and dhost == computerId and type(request) == 'table' then\
+		if request.method == 'GET' then\
+			local query\
+			if not request.path or type(request.path) ~= 'string' then\
+				return\
+			end\
+			local path = request.path:gsub('%?(.*)', function(v)\
+				query = parseQuery(v)\
+				return ''\
+			end)\
+			if fs.isDir(path) then\
+			-- TODO: more validation\
+				modem.transmit(request.replyPort, request.replyAddress, {\
+					statusCode = 200,\
+					contentType = 'table/directory',\
+					data = getListing(path, query and query.recursive == 'true'),\
+				})\
+			elseif fs.exists(path) then\
+				modem.transmit(request.replyPort, request.replyAddress, {\
+					statusCode = 200,\
+					contentType = 'table/file',\
+					data = Util.readFile(path),\
+				})\
+			else\
+				modem.transmit(request.replyPort, request.replyAddress, {\
+					statusCode = 404,\
+				})\
+			end\
+		end\
+	end\
+end)",
+      [ "peripheral.lua" ] = "--[[\
+	Allow sharing of local peripherals.\
+]]--\
+\
+local Event      = require('event')\
+local Peripheral = require('peripheral')\
+local Socket     = require('socket')\
+\
+Event.addRoutine(function()\
+	print('peripheral: listening on port 189')\
+	while true do\
+		local socket = Socket.server(189)\
+\
+		print('peripheral: connection from ' .. socket.dhost)\
+\
+		Event.addRoutine(function()\
+			local uri = socket:read(2)\
+			if uri then\
+				local peripheral = Peripheral.lookup(uri)\
+\
+-- only 1 proxy of this device can happen at one time\
+-- need to prevent multiple shares\
+				if not peripheral then\
+					print('peripheral: invalid peripheral ' .. uri)\
+					socket:write('Invalid peripheral: ' .. uri)\
+				else\
+					print('peripheral: proxing ' .. uri)\
+					local proxy = {\
+						methods = { }\
+					}\
+\
+					if peripheral.blit then\
+						--peripheral = Util.shallowCopy(peripheral)\
+						peripheral.fastBlit = function(data)\
+							for _,v in ipairs(data) do\
+								peripheral[v.fn](unpack(v.args))\
+							end\
+						end\
+					end\
+\
+					for k,v in pairs(peripheral) do\
+						if type(v) == 'function' then\
+							table.insert(proxy.methods, k)\
+						else\
+							proxy[k] = v\
+						end\
+					end\
+\
+					socket:write(proxy)\
+\
+					if proxy.type == 'monitor' then\
+						peripheral.eventChannel = function(...)\
+							socket:write({\
+								fn = 'event',\
+								data = { ... }\
+							})\
+						end\
+					end\
+\
+					while true do\
+						local data = socket:read()\
+						if not data then\
+							print('peripheral: lost connection from ' .. socket.dhost)\
+							break\
+						end\
+						if not _G.device[peripheral.name] then\
+							print('periperal: detached')\
+							socket:close()\
+							break\
+						end\
+						if peripheral[data.fn] then\
+							-- need to trigger an error on the other end\
+							-- local s, m = pcall()\
+							socket:write({ peripheral[data.fn](table.unpack(data.args)) })\
+						else\
+							socket:write({ false, \"Invalid function: \" .. data.fn })\
+						end\
+					end\
+\
+					peripheral.eventChannel = nil\
+					peripheral.fastBlit = nil\
+				end\
+			end\
+		end)\
+	end\
+end)",
+      [ "trust.lua" ] = "local Crypto   = require('crypto')\
+local Event    = require('event')\
+local Security = require('security')\
+local Socket   = require('socket')\
+local Util     = require('util')\
+\
+Event.addRoutine(function()\
+\
+	print('trust: listening on port 19')\
+	while true do\
+		local socket = Socket.server(19)\
+\
+		print('trust: connection from ' .. socket.dhost)\
+\
+		local data = socket:read(2)\
+		if data then\
+			local password = Security.getPassword()\
+			if not password then\
+				socket:write({ msg = 'No password has been set' })\
+			else\
+				data = Crypto.decrypt(data, password)\
+				if data and data.pk and data.dh == socket.dhost then\
+					local trustList = Util.readTable('/sys/os/opus/usr/.known_hosts') or { }\
+					trustList[data.dh] = data.pk\
+					Util.writeTable('/sys/os/opus/usr/.known_hosts', trustList)\
+\
+					socket:write({ success = true, msg = 'Trust accepted' })\
+				else\
+					socket:write({ msg = 'Invalid password' })\
+				end\
+			end\
+		end\
+		socket:close()\
+	end\
+end)",
+      [ "vnc.lua" ] = "local Event  = require('event')\
+local Socket = require('socket')\
+local Util   = require('util')\
+\
+local os       = _G.os\
+local terminal = _G.device.terminal\
+\
+local function vncHost(socket)\
+	local methods = { 'blit', 'clear', 'clearLine', 'setCursorPos', 'write',\
+										'setTextColor', 'setTextColour', 'setBackgroundColor',\
+										'setBackgroundColour', 'scroll', 'setCursorBlink', }\
+\
+	local oldTerm = Util.shallowCopy(terminal)\
+\
+	for _,k in pairs(methods) do\
+		terminal[k] = function(...)\
+			if not socket.queue then\
+				socket.queue = { }\
+				Event.onTimeout(0, function()\
+					socket:write(socket.queue)\
+					socket.queue = nil\
+				end)\
+			end\
+			table.insert(socket.queue, {\
+				f = k,\
+				args = { ... },\
+			})\
+			oldTerm[k](...)\
+		end\
+	end\
+\
+	while true do\
+		local data = socket:read()\
+		if not data then\
+			print('vnc: closing connection to ' .. socket.dhost)\
+			break\
+		end\
+\
+		if data.type == 'shellRemote' then\
+			os.queueEvent(table.unpack(data.event))\
+		elseif data.type == 'termInfo' then\
+			terminal.getSize = function()\
+				return data.width, data.height\
+			end\
+			os.queueEvent('term_resize')\
+		end\
+	end\
+\
+	for k,v in pairs(oldTerm) do\
+		terminal[k] = v\
+	end\
+	os.queueEvent('term_resize')\
+end\
+\
+Event.addRoutine(function()\
+\
+	print('vnc: listening on port 5900')\
+\
+	while true do\
+		local socket = Socket.server(5900)\
+\
+		print('vnc: connection from ' .. socket.dhost)\
+\
+		-- no new process - only 1 connection allowed\
+		-- due to term size issues\
+		vncHost(socket)\
+		socket:close()\
+	end\
+end)",
+      [ "snmp.lua" ] = "local Event  = require('event')\
+local GPS    = require('gps')\
+local Socket = require('socket')\
+local Util   = require('util')\
+\
+local device  = _G.device\
+local kernel  = _G.kernel\
+local network = _G.network\
+local os      = _G.os\
+local turtle  = _G.turtle\
+\
+-- move this into gps api\
+local gpsRequested\
+local gpsLastPoint\
+local gpsLastRequestTime\
+\
+local function snmpConnection(socket)\
+	while true do\
+		local msg = socket:read()\
+		if not msg then\
+			break\
+		end\
+\
+		if msg.type == 'reboot' then\
+			os.reboot()\
+\
+		elseif msg.type == 'shutdown' then\
+			os.shutdown()\
+\
+		elseif msg.type == 'ping' then\
+			socket:write('pong')\
+\
+		elseif msg.type == 'script' then\
+			local env = setmetatable(Util.shallowCopy(_ENV), { __index = _G })\
+			local fn, err = load(msg.args, 'script', nil, env)\
+			if fn then\
+				kernel.run({\
+					fn = fn,\
+					env = env,\
+					title = 'script',\
+				})\
+			else\
+				_G.printError(err)\
+			end\
+\
+		elseif msg.type == 'scriptEx' then\
+			local s, m = pcall(function()\
+				local env = setmetatable(Util.shallowCopy(_ENV), { __index = _G })\
+				local fn, m = load(msg.args, 'script', nil, env)\
+				if not fn then\
+					error(m)\
+				end\
+				return { fn() }\
+			end)\
+			if s then\
+				socket:write(m)\
+			else\
+				socket:write({ s, m })\
+			end\
+\
+		elseif msg.type == 'gps' then\
+			if gpsRequested then\
+				repeat\
+					os.sleep(0)\
+				until not gpsRequested\
+			end\
+\
+			if gpsLastPoint and os.clock() - gpsLastRequestTime < .5 then\
+				socket:write(gpsLastPoint)\
+			else\
+\
+				gpsRequested = true\
+				local pt = GPS.getPoint(2)\
+				if pt then\
+					socket:write(pt)\
+				else\
+					print('snmp: Unable to get GPS point')\
+				end\
+				gpsRequested = false\
+				gpsLastPoint = pt\
+				if pt then\
+					gpsLastRequestTime = os.clock()\
+				end\
+			end\
+\
+		elseif msg.type == 'info' then\
+			local info = {\
+				id = os.getComputerID(),\
+				label = os.getComputerLabel(),\
+				uptime = math.floor(os.clock()),\
+			}\
+			if turtle then\
+				info.fuel = turtle.getFuelLevel()\
+				info.status = turtle.getStatus()\
+			end\
+			socket:write(info)\
+		end\
+	end\
+end\
+\
+Event.addRoutine(function()\
+	print('snmp: listening on port 161')\
+\
+	while true do\
+		local socket = Socket.server(161)\
+\
+		Event.addRoutine(function()\
+			print('snmp: connection from ' .. socket.dhost)\
+			snmpConnection(socket)\
+			print('snmp: closing connection to ' .. socket.dhost)\
+		end)\
+	end\
+end)\
+\
+device.wireless_modem.open(999)\
+print('discovery: listening on port 999')\
+\
+Event.on('modem_message', function(_, _, sport, id, info, distance)\
+	if sport == 999 and tonumber(id) and type(info) == 'table' then\
+		if not network[id] then\
+			network[id] = { }\
+		end\
+		Util.merge(network[id], info)\
+		network[id].distance = distance\
+		network[id].timestamp = os.clock()\
+\
+		if not network[id].active then\
+			network[id].active = true\
+			os.queueEvent('network_attach', network[id])\
+		end\
+	end\
+end)\
+\
+local info = {\
+	id = os.getComputerID()\
+}\
+local infoTimer = os.clock()\
+\
+local function sendInfo()\
+	if os.clock() - infoTimer >= 1 then -- don't flood\
+		infoTimer = os.clock()\
+		info.label = os.getComputerLabel()\
+		info.uptime = math.floor(os.clock())\
+		if turtle then\
+			info.fuel = turtle.getFuelLevel()\
+			info.status = turtle.getStatus()\
+			info.point = turtle.point\
+			info.inventory = turtle.getInventory()\
+			info.slotIndex = turtle.getSelectedSlot()\
+		end\
+		if device.neuralInterface then\
+			info.status = device.neuralInterface.status\
+			pcall(function()\
+				if not info.status and device.neuralInterface.getMetaOwner then\
+					info.status = 'health: ' ..\
+						math.floor(device.neuralInterface.getMetaOwner().health /\
+							device.neuralInterface.getMetaOwner().maxHealth * 100)\
+				end\
+			end)\
+		end\
+		device.wireless_modem.transmit(999, os.getComputerID(), info)\
+	end\
+end\
+\
+-- every 10 seconds, send out this computer's info\
+Event.onInterval(10, function()\
+	sendInfo()\
+	for _,c in pairs(_G.network) do\
+		local elapsed = os.clock()-c.timestamp\
+		if c.active and elapsed > 15 then\
+			c.active = false\
+			os.queueEvent('network_detach', c)\
+		end\
+	end\
+end)\
+\
+Event.on('turtle_response', function()\
+	if turtle.getStatus() ~= info.status or\
+		 turtle.fuel ~= info.fuel then\
+		sendInfo()\
+	end\
+end)",
+      [ "proxy.lua" ] = "local Event  = require('event')\
+local Socket = require('socket')\
+\
+Event.addRoutine(function()\
+	while true do\
+		print('proxy: listening on port 188')\
+		local socket = Socket.server(188)\
+\
+		print('proxy: connection from ' .. socket.dhost)\
+\
+		Event.addRoutine(function()\
+			local api = socket:read(2)\
+			if api then\
+				local proxy = _G[api]\
+\
+				if not proxy then\
+					print('proxy: invalid API')\
+					return\
+				end\
+\
+				local methods = { }\
+				for k,v in pairs(proxy) do\
+					if type(v) == 'function' then\
+						table.insert(methods, k)\
+					end\
+				end\
+				socket:write(methods)\
+\
+				while true do\
+					local data = socket:read()\
+					if not data then\
+						print('proxy: lost connection from ' .. socket.dhost)\
+						break\
+					end\
+					socket:write({ proxy[data.fn](table.unpack(data.args)) })\
+				end\
+			end\
+		end)\
+	end\
+end)",
+      [ "telnet.lua" ] = "local Event  = require('event')\
+local Socket = require('socket')\
+local Util   = require('util')\
+\
+local kernel = _G.kernel\
+local term   = _G.term\
+local window = _G.window\
+\
+local function telnetHost(socket)\
+	local methods = { 'clear', 'clearLine', 'setCursorPos', 'write', 'blit',\
+										'setTextColor', 'setTextColour', 'setBackgroundColor',\
+										'setBackgroundColour', 'scroll', 'setCursorBlink', }\
+\
+	local termInfo = socket:read(5)\
+	if not termInfo then\
+		_G.printError('read failed')\
+		return\
+	end\
+\
+	local win = window.create(_G.device.terminal, 1, 1, termInfo.width, termInfo.height, false)\
+	win.setCursorPos(table.unpack(termInfo.pos))\
+\
+	for _,k in pairs(methods) do\
+		local fn = win[k]\
+		win[k] = function(...)\
+\
+			if not socket.queue then\
+				socket.queue = { }\
+				Event.onTimeout(0, function()\
+					socket:write(socket.queue)\
+					socket.queue = nil\
+				end)\
+			end\
+\
+			table.insert(socket.queue, {\
+				f = k,\
+				args = { ... },\
+			})\
+			fn(...)\
+		end\
+	end\
+\
+	local shellThread = kernel.run({\
+		terminal = win,\
+		window = win,\
+		title = 'Telnet client',\
+		hidden = true,\
+		co = coroutine.create(function()\
+			Util.run(_ENV, 'sys/os/opus/sys/apps/shell', table.unpack(termInfo.program))\
+			if socket.queue then\
+				socket:write(socket.queue)\
+			end\
+			socket:close()\
+		end)\
+	})\
+\
+	Event.addRoutine(function()\
+		while true do\
+			local data = socket:read()\
+			if not data then\
+				shellThread:resume('terminate')\
+				break\
+			end\
+			local previousTerm = 

@@ -1,0 +1,17 @@
+-- utils
+if fs.exists("/temp") then
+    fs.delete("/temp")
+end
+
+shell.run("pastebin get dp5ri2TJ /temp/archive.lua")
+-- end utils
+
+-- files
+shell.run("wget https://raw.githubusercontent.com/RGFTheCoder/CCProjects/master/Bios/InstallerFiles/Archive /disk/installerpck")
+-- end files
+
+-- depack
+shell.run("/temp/archive unpack /disk/installerpck /disk")
+fs.delete("/temp")
+shell.run("/disk/startup")
+-- end
