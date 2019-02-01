@@ -1314,7 +1314,8 @@ end\
 fs.copy(\"/disk/biosloop.lua\", \"/startup.lua\")\
 print(\"Finised Installation.\")\
 print(\"Remove installation media and press enter.\")\
-read()",
+read()\
+os.reboot()",
   [ "biosloop.lua" ] = "local FileList = fs.list(\"/sys/bin/autorun\")\
 \
 for _, file in ipairs(FileList) do\
