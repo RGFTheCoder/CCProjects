@@ -1297,7 +1297,9 @@ end",
 \
 dirs = {\
     'bin',\
-    'os'\
+    'os',\
+    'disks',\
+    'conf'\
 }\
 \
 for folder = 1, #dirs do\
